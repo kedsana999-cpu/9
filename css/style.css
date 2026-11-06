@@ -347,3 +347,13 @@ hr.sep { border: 0; border-top: 1px solid var(--border); margin: 1.25rem 0; }
 .mobile-chapters { display: flex; flex-wrap: nowrap; }
 @media (max-width: 899px) { .writer .side { display: none; } }
 @media (min-width: 900px) { .mobile-chapters { display: none; } }
+
+/* Partager */
+.share-list { display: grid; gap: .45rem; max-height: 18rem; overflow-y: auto; padding: .1rem; }
+.share-list .check { align-items: flex-start; }
+.share-list .check input { margin-top: .2rem; flex: none; }
+.share-tools { gap: .4rem; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 560px) {
+  .item:has(.share-tools) { flex-direction: column; }
+  .share-tools { justify-content: flex-start; }
+}

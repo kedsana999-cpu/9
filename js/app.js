@@ -50,7 +50,8 @@
     external: '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
     play: '<path d="M7 4.5v15l12-7.5z"/>',
     stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>',
-    save: '<path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/>'
+    save: '<path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/>',
+    share: '<path d="M12 3v12M8 7l4-4 4 4"/><path d="M7 10H5.5A1.5 1.5 0 0 0 4 11.5v8A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5v-8a1.5 1.5 0 0 0-1.5-1.5H17"/>'
   };
   function ic(name) {
     return '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || '') + '</svg>';
@@ -119,6 +120,7 @@
     out.plot = Object.assign({ synopsis: '', beats: [] }, p.plot || {});
     out.lexicon = Object.assign({ words: [], concepts: [] }, p.lexicon || {});
     out.session = Object.assign({ chapterId: null, cursor: 0 }, p.session || {});
+    out.shareOpts = Object.assign({ titlePage: true, numbering: true, pageBreak: true, pitch: false, exclude: [] }, p.shareOpts || {});
     ['chapters', 'characters', 'ideas', 'facts', 'aiHistory'].forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
     return out;
   }
@@ -428,7 +430,8 @@
   const TABS = [
     ['tableau', 'Tableau', 'grid'], ['manuscrit', 'Manuscrit', 'pen'], ['fil', 'Fil rouge', 'route'],
     ['personnages', 'Personnages', 'users'], ['idees', 'Idées', 'bulb'], ['lexique', 'Lexique', 'words'],
-    ['univers', 'Univers', 'globe'], ['check', 'CHECK', 'check2'], ['assistant', 'Assistant', 'sparkle']
+    ['univers', 'Univers', 'globe'], ['check', 'CHECK', 'check2'], ['assistant', 'Assistant', 'sparkle'],
+    ['partager', 'Partager', 'share']
   ];
 
   function viewProject(p, tab, sub) {
@@ -446,6 +449,7 @@
       case 'univers': return h + viewWorld(p);
       case 'check': return h + viewCheck(p, sub);
       case 'assistant': return h + viewAssistant(p, sub);
+      case 'partager': return h + viewShare(p);
       default: return h + viewOverview(p);
     }
   }
@@ -474,11 +478,10 @@
       (p.targetWords ? '<div style="margin-top:1rem"><div class="row between"><small class="muted">Vers l\'objectif de ' + fmt(p.targetWords) + ' mots</small><small class="muted">' + pct + ' %</small></div><div class="progress' + (pct >= 100 ? ' done' : '') + '"><div style="width:' + pct + '%"></div></div></div>' : '') +
       '</section>';
 
-    h += '<section class="card" style="margin-top:1rem"><h2>Exporter et sauvegarder</h2><p class="muted">Le manuscrit s\'ouvre dans Word, Pages ou Google Docs. Le fichier « dossier complet » se réimporte dans l\'Atelier.</p><div class="row">' +
-      '<button data-act="export-md">' + ic('download') + ' Manuscrit (.md)</button>' +
-      '<button data-act="export-txt">' + ic('download') + ' Manuscrit (.txt)</button>' +
-      '<button data-act="export-json">' + ic('save') + ' Dossier complet (.json)</button>' +
-      '<span class="spacer"></span><button class="btn-danger" data-act="delete-project">' + ic('trash') + ' Supprimer le dossier</button></div></section>';
+    h += '<section class="card accent" style="margin-top:1rem"><div class="row between"><div><h2 style="margin:0">Partager ton histoire</h2>' +
+      '<small class="muted">En PDF, en Word ou en texte, ou le dossier complet pour continuer sur un autre appareil.</small></div>' +
+      '<a class="btn btn-primary" href="#/d/' + p.id + '/partager">' + ic('share') + ' Partager / exporter</a></div></section>';
+    h += '<div class="row" style="margin-top:1rem;justify-content:flex-end"><button class="btn-danger btn-sm" data-act="delete-project">' + ic('trash') + ' Supprimer le dossier</button></div>';
     return h;
   }
 
@@ -867,6 +870,87 @@
   }
 
   /* ======================================================================
+     Partager
+     ====================================================================== */
+  function shareOpts(p) {
+    p.shareOpts = Object.assign({ titlePage: true, numbering: true, pageBreak: true, pitch: false, exclude: [] }, p.shareOpts || {});
+    return p.shareOpts;
+  }
+
+  function projectExport(p) {
+    return { app: 'atelier-ecriture', kind: 'dossier', version: 1, exportedAt: new Date().toISOString(), project: p };
+  }
+
+  function viewShare(p) {
+    const o = shareOpts(p);
+    const ex = new Set(o.exclude);
+    const included = p.chapters.filter(c => !ex.has(c.id) && c.text.trim());
+    const words = included.reduce((s, c) => s + M.wordCount(c.text), 0);
+    const pages = Math.max(1, Math.round(words / 330)) + (o.titlePage ? 1 : 0);
+    const canShare = A.exporter.canShareFile(A.exporter.MIME.pdf);
+    // On charge la bibliothèque PDF à l'avance : le partage doit suivre immédiatement le clic.
+    afterRender.push(() => { A.exporter.loadPdfLib().catch(() => {}); });
+
+    let h = '<div class="grid-2">';
+    h += '<section class="card stack"><div><h2>Que partager ?</h2><p class="muted" style="margin:0">Choisis les chapitres et la présentation.</p></div>';
+    if (!p.chapters.length) h += '<p class="muted" style="margin:0">Aucun chapitre pour l\'instant.</p>';
+    else {
+      h += '<div class="row"><button class="btn-sm" data-act="share-select" data-mode="all">Tous</button>' +
+        '<button class="btn-sm" data-act="share-select" data-mode="done">Seulement les terminés</button>' +
+        '<button class="btn-sm btn-ghost" data-act="share-select" data-mode="none">Aucun</button></div>';
+      h += '<div class="share-list">' + p.chapters.map((c, i) => {
+        const empty = !c.text.trim();
+        return '<label class="check"><input type="checkbox" data-on="share-ch" data-id="' + c.id + '"' + (!ex.has(c.id) && !empty ? ' checked' : '') + (empty ? ' disabled' : '') + '>' +
+          '<span><span class="dot s-' + c.status + '"></span>' + esc((i + 1) + '. ' + c.title) + ' <small class="muted">· ' + (empty ? 'vide' : plural(M.wordCount(c.text), 'mot', 'mots')) + '</small></span></label>';
+      }).join('') + '</div>';
+    }
+    h += '<hr class="sep" style="margin:.25rem 0">' +
+      '<div class="field"><label>Ton nom (ou pseudonyme) sur la page de titre</label><input type="text" data-spath="authorName" value="' + esc(st.settings.authorName || '') + '" placeholder="Facultatif"></div>' +
+      '<label class="check"><input type="checkbox" data-path="shareOpts.titlePage" data-rerender="1"' + (o.titlePage ? ' checked' : '') + '> Page de titre</label>' +
+      '<label class="check"><input type="checkbox" data-path="shareOpts.pitch"' + (o.pitch && p.pitch ? ' checked' : '') + (p.pitch && o.titlePage ? '' : ' disabled') + '> Ajouter le pitch sur la page de titre' +
+      (p.pitch ? '' : ' <small class="muted">(à écrire dans le Tableau)</small>') + '</label>' +
+      '<label class="check"><input type="checkbox" data-path="shareOpts.numbering"' + (o.numbering ? ' checked' : '') + '> Numéroter les chapitres (« Chapitre 1 »)</label>' +
+      '<label class="check"><input type="checkbox" data-path="shareOpts.pageBreak"' + (o.pageBreak ? ' checked' : '') + '> Chaque chapitre sur une nouvelle page</label></section>';
+
+    const dis = included.length ? '' : ' disabled';
+    const row = (id, title, desc, shareable) => '<div class="item"><div class="body"><b>' + title + '</b><br><small class="muted">' + desc + '</small></div>' +
+      '<div class="tools share-tools">' +
+      (shareable && canShare ? '<button class="btn-sm btn-primary" data-act="share-file" data-format="' + id + '" data-mode="share"' + dis + '>' + ic('share') + ' Partager</button>' : '') +
+      '<button class="btn-sm' + (shareable && canShare ? '' : ' btn-primary') + '" data-act="share-file" data-format="' + id + '" data-mode="download"' + dis + '>' + ic('download') + ' Télécharger</button></div></div>';
+    h += '<section class="card stack"><div><h2>Envoyer ou télécharger</h2><p class="muted" style="margin:0">' +
+      (included.length ? plural(included.length, 'chapitre', 'chapitres') + ' · ' + plural(words, 'mot', 'mots') + ' · environ ' + plural(pages, 'page', 'pages')
+        : 'Sélectionne au moins un chapitre qui contient du texte.') + '</p></div>' +
+      '<div>' + row('pdf', 'PDF', 'Pour faire lire : mise en page de livre (A4, texte justifié, numéros de page). Ne se modifie pas.', true) +
+      row('docx', 'Word (.docx)', 'Pour retravailler le texte ou l\'envoyer à un éditeur, un concours, une relectrice. S\'ouvre aussi dans Pages, LibreOffice et Google Docs.', true) +
+      row('txt', 'Texte brut (.txt)', 'Le texte seul, sans mise en forme.', true) + '</div>' +
+      (canShare ? '<p class="help" style="margin:0">« Partager » ouvre le menu de ton appareil : Mail, Messages, WhatsApp, Drive, AirDrop… Si ton appareil refuse un format, le fichier est simplement téléchargé.</p>'
+        : '<p class="help" style="margin:0">Sur ordinateur, télécharge le fichier puis joins-le à un e-mail ou range-le dans ton cloud. Sur téléphone, un bouton « Partager » apparaît ici.</p>') +
+      '</section></div>';
+
+    h += '<section class="card stack" style="margin-top:1rem"><div><h2>Continuer sur un autre appareil</h2><p class="muted" style="margin:0">Le dossier complet (manuscrit, fiches, fil rouge, idées, lexique…) dans un seul fichier. Sur l\'autre appareil : <b>Dossiers → Importer</b>.</p></div>' +
+      '<div class="row">' + (canShare ? '<button data-act="share-file" data-format="json" data-mode="share">' + ic('share') + ' Partager le dossier</button>' : '') +
+      '<button data-act="share-file" data-format="json" data-mode="download">' + ic('save') + ' Télécharger le dossier (.json)</button></div></section>';
+    return h;
+  }
+
+  async function deliverDoc(title, doc, fmt, wantShare) {
+    const E = A.exporter;
+    const base = slug(title);
+    let blob, name;
+    if (fmt === 'pdf') {
+      if (!window.jspdf) { toast('Préparation du PDF…'); await E.loadPdfLib(); }
+      blob = E.toPdf(doc); name = base + '.pdf';
+    } else if (fmt === 'docx') { blob = E.toDocx(doc); name = base + '.docx'; }
+    else { blob = new Blob([E.toTxt(doc)], { type: E.MIME.txt }); name = base + '.txt'; }
+    return { result: await E.deliver(blob, name, title, wantShare), name };
+  }
+
+  function deliveredToast(r, wantShare) {
+    if (r.result === 'shared') toast('Partagé ✓');
+    else if (r.result === 'downloaded') toast(wantShare ? 'Partage direct indisponible pour ce format ici : fichier téléchargé ✓' : 'Fichier téléchargé : ' + r.name);
+  }
+
+  /* ======================================================================
      Assistant
      ====================================================================== */
   function aiState(p, task) {
@@ -1103,6 +1187,8 @@
 
   function viewExercise(e) {
     const projOpts = [['', '— Envoyer vers la boîte à idées de… —']].concat(st.projects.map(p => [p.id, p.title]));
+    const canShareEx = A.exporter.canShareFile(A.exporter.MIME.pdf);
+    afterRender.push(() => { A.exporter.loadPdfLib().catch(() => {}); });
     return '<div class="row between" style="margin-bottom:1rem"><a class="btn btn-ghost" href="#/entrainement">' + ic('back') + ' Entraînement</a>' +
       '<button class="btn-danger btn-sm" data-act="train-delete" data-id="' + e.id + '">' + ic('trash') + ' Supprimer</button></div>' +
       '<section class="card stack"><small class="muted">' + dateFr(e.createdAt, true) + ' · ' + plural(e.wordCount, 'mot', 'mots') + '</small>' +
@@ -1110,6 +1196,10 @@
       '<textarea class="editor" data-on="exercise-text" data-id="' + e.id + '" lang="fr">' + esc(e.text) + '</textarea>' +
       '<label class="check"><input type="checkbox" data-on="exercise-sample" data-id="' + e.id + '"' + (e.styleSample ? ' checked' : '') + '> Ce texte représente bien mon style (sert d\'exemple à l\'assistant)</label>' +
       (st.projects.length ? '<div class="row">' + select('id="exToProject" style="width:auto;flex:1"', projOpts, '') + '<button data-act="train-to-idea" data-id="' + e.id + '">' + ic('bulb') + ' Envoyer</button></div>' : '') +
+      '<div class="row"><small class="muted">Partager ce texte :</small>' +
+      (canShareEx ? '<button class="btn-sm btn-primary" data-act="share-exercise" data-format="pdf" data-mode="share" data-id="' + e.id + '">' + ic('share') + ' Partager (PDF)</button>' : '') +
+      '<button class="btn-sm" data-act="share-exercise" data-format="pdf" data-mode="download" data-id="' + e.id + '">' + ic('download') + ' PDF</button>' +
+      '<button class="btn-sm" data-act="share-exercise" data-format="docx" data-mode="download" data-id="' + e.id + '">' + ic('download') + ' Word</button></div>' +
       '</section>';
   }
 
@@ -1191,17 +1281,6 @@
   /* ======================================================================
      Export / import
      ====================================================================== */
-  function manuscriptMd(p) {
-    let s = '# ' + p.title + '\n\n';
-    p.chapters.forEach(c => { s += '## ' + c.title + '\n\n' + c.text.trim() + '\n\n'; });
-    return s;
-  }
-  function manuscriptTxt(p) {
-    let s = p.title.toUpperCase() + '\n\n';
-    p.chapters.forEach(c => { s += '\n' + c.title + '\n' + '—'.repeat(Math.min(40, c.title.length || 3)) + '\n\n' + c.text.trim() + '\n\n'; });
-    return s;
-  }
-
   function fullBackup() {
     const settings = Object.assign({}, st.settings, { apiKey: '' });
     return { app: 'atelier-ecriture', kind: 'sauvegarde', version: 1, exportedAt: new Date().toISOString(), projects: st.projects, exercises: st.exercises, log: st.log, settings };
@@ -1287,11 +1366,40 @@
       go('#/dossiers');
       toast('Dossier supprimé.');
     },
-    'export-md'() { const p = curProject(); download(slug(p.title) + '.md', manuscriptMd(p), 'text/markdown;charset=utf-8'); },
-    'export-txt'() { const p = curProject(); download(slug(p.title) + '.txt', manuscriptTxt(p)); },
-    'export-json'() {
+    async 'share-file'(el) {
       const p = curProject();
-      download('dossier-' + slug(p.title) + '.json', JSON.stringify({ app: 'atelier-ecriture', kind: 'dossier', version: 1, exportedAt: new Date().toISOString(), project: p }, null, 1), 'application/json');
+      const fmt = el.dataset.format;
+      const wantShare = el.dataset.mode === 'share';
+      try {
+        let r;
+        if (fmt === 'json') {
+          const name = 'dossier-' + slug(p.title) + '.json';
+          const blob = new Blob([JSON.stringify(projectExport(p), null, 1)], { type: A.exporter.MIME.json });
+          r = { result: await A.exporter.deliver(blob, name, p.title, wantShare), name };
+        } else {
+          const doc = A.exporter.prepare(p, Object.assign({}, shareOpts(p), { author: st.settings.authorName }));
+          if (!doc.chapters.length) { toast('Aucun chapitre avec du texte à partager.'); return; }
+          r = await deliverDoc(p.title, doc, fmt, wantShare);
+        }
+        deliveredToast(r, wantShare);
+      } catch (e) { console.error(e); toast('Export impossible : ' + e.message); }
+    },
+    'share-select'(el) {
+      const p = curProject();
+      const o = shareOpts(p);
+      const m = el.dataset.mode;
+      o.exclude = m === 'all' ? [] : m === 'none' ? p.chapters.map(c => c.id) : p.chapters.filter(c => c.status !== 'fini').map(c => c.id);
+      touchProject(p); render();
+      if (m === 'done' && !p.chapters.some(c => c.status === 'fini')) toast('Aucun chapitre n\'est marqué « Terminé » pour l\'instant.');
+    },
+    async 'share-exercise'(el) {
+      const e = st.exercises.find(x => x.id === el.dataset.id);
+      if (!e || !e.text.trim()) return;
+      const title = 'Entraînement du ' + dateFr(e.createdAt, true);
+      const doc = A.exporter.prepare({ title, chapters: [{ id: e.id, title, text: e.text }] },
+        { titlePage: false, numbering: false, pageBreak: false, pitch: false, exclude: [], author: st.settings.authorName });
+      try { deliveredToast(await deliverDoc(title, doc, el.dataset.format, el.dataset.mode === 'share'), el.dataset.mode === 'share'); }
+      catch (err) { console.error(err); toast('Export impossible : ' + err.message); }
     },
     backup() {
       download('atelier-sauvegarde-' + M.dayKey() + '.json', JSON.stringify(fullBackup(), null, 1), 'application/json');
@@ -1739,6 +1847,14 @@
       go('#/d/' + p.id + '/check/' + el.value);
     },
     theme(el) { st.settings.theme = el.value; applyTheme(); },
+    'share-ch'(el) {
+      const p = curProject();
+      const o = shareOpts(p);
+      const set = new Set(o.exclude);
+      if (el.checked) set.delete(el.dataset.id); else set.add(el.dataset.id);
+      o.exclude = Array.from(set);
+      touchProject(p); render();
+    },
     'chapter-jump'(el) { const p = curProject(); go('#/d/' + p.id + '/manuscrit/' + el.value); },
     dictionary(el) { st.settings.dictionary = el.value.split('\n').map(s => s.trim()).filter(Boolean); touch('settings'); },
     tics(el) { st.settings.tics = el.value.split('\n').map(s => s.trim()).filter(Boolean); touch('settings'); },

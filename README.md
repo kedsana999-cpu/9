@@ -18,6 +18,7 @@ Tes textes restent sur ton appareil.
 | **Univers** | Les faits établis à ne pas contredire : lieux, règles, chronologie, objets. |
 | **CHECK** | Orthographe et grammaire (LanguageTool), **concordance des temps**, répétitions, phrases trop longues, adverbes, mots-tics, **typographie française** (corrigeable en un clic) et **noms mal orthographiés** (« Matilde » au lieu de « Mathilde »). |
 | **Assistant** | Réécrire un passage, découper ta trame, traquer les incohérences, débloquer la suite, avis de lecteur, analyse de ton style, question libre. |
+| **Partager** | Ton histoire en **PDF** (mise en page de livre), en **Word** (.docx) ou en texte, avec page de titre, ton nom et le choix des chapitres. Sur téléphone, le bouton « Partager » ouvre directement Mail, Messages, WhatsApp, Drive, AirDrop… Le dossier complet s'envoie aussi vers un autre appareil. |
 | **Entraînement** | Une consigne par jour (plus de 60), des mots imposés, un minuteur, un objectif de 300 mots, une série de jours d'affilée et un calendrier. |
 
 ## Comment l'ouvrir
@@ -58,7 +59,7 @@ Deux façons de l'utiliser :
   - le texte vérifié, quand tu lances le correcteur orthographique (service gratuit LanguageTool) ;
   - la demande, quand tu lances l'assistant en mode automatique (API Claude).
 - **Télécharge une sauvegarde régulièrement** (Réglages → Sauvegardes). L'accueil te le rappelle au bout de 7 jours. Range le fichier dans ton cloud (iCloud, Google Drive…).
-- Chaque dossier s'exporte aussi en `.md` ou `.txt` (lisible dans Word, Pages ou Google Docs) et en `.json` (réimportable).
+- Chaque dossier s'exporte (onglet **Partager**) en PDF, en Word (.docx), en texte et en `.json` (réimportable). Les textes d'entraînement s'exportent aussi en PDF ou en Word.
 
 ## Pour les curieux (structure du code)
 
@@ -71,7 +72,9 @@ js/store.js                 stockage local et modèle de données
 js/prompts.js               consignes d'entraînement, mots imposés, structures de récit
 js/check.js                 analyses du CHECK (temps, style, typographie, noms) + LanguageTool
 js/ai.js                    demandes à l'assistant (mode copier-coller et API Claude)
+js/export.js                export Word (.docx), PDF, texte et partage
 js/app.js                   écrans et interactions
 vendor/anthropic-sdk-1.3.0.js  bibliothèque officielle Claude (@anthropic-ai/sdk 1.3.0), chargée seulement en mode automatique
+vendor/jspdf-4.2.1.umd.min.js  bibliothèque PDF (jsPDF 4.2.1), chargée seulement dans « Partager »
 sw.js, manifest.webmanifest application installable et fonctionnant hors ligne
 ```

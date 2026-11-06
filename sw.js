@@ -1,9 +1,9 @@
 /* Atelier d'écriture — service worker : permet d'ouvrir l'appli sans connexion. */
-const CACHE = 'atelier-v1';
+const CACHE = 'atelier-v2';
 const FILES = [
   './', 'index.html', 'css/style.css',
-  'js/store.js', 'js/prompts.js', 'js/check.js', 'js/ai.js', 'js/app.js',
-  'vendor/anthropic-sdk-1.3.0.js',
+  'js/store.js', 'js/prompts.js', 'js/check.js', 'js/ai.js', 'js/export.js', 'js/app.js',
+  'vendor/anthropic-sdk-1.3.0.js', 'vendor/jspdf-4.2.1.umd.min.js',
   'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'
 ];
 

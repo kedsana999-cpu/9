@@ -124,7 +124,8 @@ window.Atelier = window.Atelier || {};
         lexicon: { words: [], concepts: [] },
         facts: [],
         aiHistory: [],
-        session: { chapterId: null, cursor: 0 }
+        session: { chapterId: null, cursor: 0 },
+        shareOpts: { titlePage: true, numbering: true, pageBreak: true, pitch: false, exclude: [] }
       };
     },
 
@@ -162,6 +163,7 @@ window.Atelier = window.Atelier || {};
         languageToolUrl: 'https://api.languagetool.org/v2',
         dictionary: [],           // mots à ne jamais signaler (noms inventés…)
         tics: ['soudain', 'soudainement', 'vraiment', 'très', 'alors', 'puis', 'juste', 'commença à', 'se mit à', 'il y avait'],
+        authorName: '',
         lastBackup: 0,
         lastExerciseId: null
       };
